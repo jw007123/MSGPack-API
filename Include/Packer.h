@@ -44,7 +44,6 @@ namespace MSGPack
 		void PackBinary(const u8* const val_, const u32 len_);
 
 		/// Packs the ext type with the size given as the template arg and a ptr to the data_
-		template <u32 ExtSize>
 		void PackExt(const i32 type_, const u8* const data_, const u32 len_);
 
 		/// Starts an array with the size determined between this call and EndArray()
@@ -343,38 +342,37 @@ namespace MSGPack
 	}
 
 	template <u32 Size>
-	template <u32 ExtSize>
 	void Packer<Size>::PackExt(const i32 type_, const u8* const data_, const u32 len_)
 	{
-		if (ExtSize == 1)
+		if (len_ == 1)
 		{
 			PackFixExt1(type_, data_);
 		}
-		else if (ExtSize == 2)
+		else if (len_ == 2)
 		{
 			PackFixExt2(type_, data_);
 		}
-		else if (ExtSize == 4)
+		else if (len_ == 4)
 		{
 			PackFixExt4(type_, data_);
 		}
-		else if (ExtSize == 8)
+		else if (len_ == 8)
 		{
 			PackFixExt8(type_, data_);
 		}
-		else if (ExtSize == 16)
+		else if (len_ == 16)
 		{
 			PackFixExt16(type_, data_);
 		}
-		else if (ExtSize <= std::numeric_limits<u8>::max())
+		else if (len_ <= std::numeric_limits<u8>::max())
 		{
 			PackExt8(type_, data_, len_);
 		}
-		else if (ExtSize <= std::numeric_limits<u16>::max())
+		else if (len_ <= std::numeric_limits<u16>::max())
 		{
 			PackExt16(type_, data_, len_);
 		}
-		else if (ExtSize <= std::numeric_limits<u32>::max())
+		else if (len_ <= std::numeric_limits<u32>::max())
 		{
 			PackExt32(type_, data_, len_);
 		}
