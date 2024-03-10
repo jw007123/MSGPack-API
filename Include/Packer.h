@@ -43,7 +43,7 @@ namespace MSGPack
 		/// Binary in form of [val_ = ptr, len_ = size]
 		void PackBinary(const u8* const val_, const u32 len_);
 
-		/// Packs the ext type with the size given as the template arg and a ptr to the data_
+		/// Packs the ext type with the integer and data_
 		void PackExt(const i32 type_, const u8* const data_, const u32 len_);
 
 		/// Starts an array with the size determined between this call and EndArray()
@@ -942,18 +942,56 @@ namespace MSGPack
 	template <u32 Size>
 	void Packer<Size>::PackExt8(const i32 type_, const u8* const data_, const u8 len_)
 	{
+		const i32 nType = htonl(type_);
 
+		u8 bytes[1 + sizeof(u8) + sizeof(i32)];
+		bytes[0] = ByteCodes::Ext8;
+		bytes[1] = len_;
+		bytes[2] = nType		 & 0xFF;
+		bytes[3] = (nType >> 8)  & 0xFF;
+		bytes[4] = (nType >> 16) & 0xFF;
+		bytes[5] = (nType >> 24) & 0xFF;
+
+		PushBytes(bytes, sizeof(bytes));
+		PushBytes(data_, len_);
 	}
 
 	template <u32 Size>
 	void Packer<Size>::PackExt16(const i32 type_, const u8* const data_, const u16 len_)
 	{
+		const i32 nType = htonl(type_);
+		const u16 nLen  = htons(len_);
 
+		u8 bytes[1 + sizeof(u16) + sizeof(i32)];
+		bytes[0] = ByteCodes::Ext16;
+		bytes[1] = nLen			 & 0xFF;
+		bytes[2] = (nLen >> 8)   & 0xFF;
+		bytes[3] = nType		 & 0xFF;
+		bytes[4] = (nType >> 8)  & 0xFF;
+		bytes[5] = (nType >> 16) & 0xFF;
+		bytes[6] = (nType >> 24) & 0xFF;
+
+		PushBytes(bytes, sizeof(bytes));
+		PushBytes(data_, len_);
 	}
 
 	template <u32 Size>
 	void Packer<Size>::PackExt32(const i32 type_, const u8* const data_, const u32 len_)
 	{
+		const i32 nType = htonl(type_);
+		const u32 nLen  = htonl(len_);
 
+		u8 bytes[1 + sizeof(u32) + sizeof(i32)];
+		bytes[0] = ByteCodes::Ext32;
+		bytes[1] = nLen			 & 0xFF;
+		bytes[2] = (nLen >> 8)   & 0xFF;
+		bytes[3] = (nLen >> 16)  & 0xFF;
+		bytes[4] = nType		 & 0xFF;
+		bytes[5] = (nType >> 8)  & 0xFF;
+		bytes[6] = (nType >> 16) & 0xFF;
+		bytes[7] = (nType >> 24) & 0xFF;
+
+		PushBytes(bytes, sizeof(bytes));
+		PushBytes(data_, len_);
 	}
 }
