@@ -46,6 +46,9 @@ namespace MSGPack
 		/// Packs the ext type with the integer and data_
 		void PackExt(const i32 type_, const u8* const data_, const u32 len_);
 
+		/// Packs timestamps defined in the spec
+		void PackTime(const u32 epochNS_, const u32 epochS_);
+
 		/// Starts an array with the size determined between this call and EndArray()
 		void StartArray();
 
@@ -386,6 +389,43 @@ namespace MSGPack
 		if (containerStartIdxs.size())
 		{
 			containerStartIdxs.top().numItems++;
+		}
+	}
+
+	template <u32 Size>
+	void Packer<Size>::PackTime(const u32 epochNS_, const u32 epochS_)
+	{
+		if ((epochS_ >> 34) == 0)
+		{
+			const u64 data64 = (epochNS_ << 34) | epochS_;
+
+			if ((data64 & 0xffffffff00000000L) == 0)
+			{
+				// Time32
+				const u32 data32 = data64;
+				PackFixExt4(-1, (u8*)&data32);
+			}
+			else
+			{
+				// Time64
+				PackFixExt8(-1, (u8*)&data64);
+			}
+		}
+		else
+		{
+			// Time96
+#pragma pack(push, 1)
+			struct
+			{
+				u32 a;
+				i64 b;
+			} combined;
+#pragma pack(pop)
+			static_assert(sizeof(combined) == 12);
+			combined.a = epochNS_;
+			combined.b = epochS_;
+
+			PackExt8(-1, (u8*)&combined, sizeof(combined));
 		}
 	}
 
