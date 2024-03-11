@@ -298,8 +298,7 @@ namespace MSGPack
 	template <u32 Size>
 	void Packer<Size>::PackString(const std::string& val_)
 	{
-		// Include null-terminator
-		const u32 len = val_.length() + 1;
+		const u32 len = val_.length();
 
 		if (len <= 31)
 		{
