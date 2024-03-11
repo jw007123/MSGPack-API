@@ -757,7 +757,7 @@ namespace MSGPack
 		IncrementPosition(sizeof(u32));
 
 		// Network to host
-		const u32 hVal = ntohs(val);
+		const u32 hVal = ntohl(val);
 
 		// Return f32
 		return *(f32*)&hVal;
@@ -776,7 +776,7 @@ namespace MSGPack
 		IncrementPosition(sizeof(u64));
 
 		// Network to host
-		const u64 hVal = ntohs(val);
+		const u64 hVal = ntohll(val);
 
 		// Return f64
 		return *(f64*)&hVal;
