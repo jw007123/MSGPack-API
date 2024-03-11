@@ -36,8 +36,10 @@ namespace MSGPack
 		Ext8	  = 0xc7,	// Ext
 		Ext16	  = 0xc8,
 		Ext32	  = 0xc9,
-		Time32	  = 0xd6,	// Time
-		Time64	  = 0xd7,
-		Time96	  = 0xc7
+		FixUInt8  = 0x00,	// -> 0x7f
+		FixMap	  = 0x80,	// -> 0x8f
+		FixArr	  = 0x90,	// -> 0x9f
+		FixString = 0xa0,	// -> 0xbf
+		FixInt8   = 0xe0	// -> 0xff
 	};
 }

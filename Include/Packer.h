@@ -16,16 +16,20 @@
 #include <vector>
 #include <variant>
 #include <stack>
+#include <string>
 
 namespace MSGPack
 {
-	/// Indicate Size = -1 for dynamic
+	/// Indicate Size = -1 for dynamic. No Time API
 	template <u32 Size>
 	class Packer
 	{
 	public:
 		Packer();
 		~Packer();
+
+		/// Clears the packer
+		void Clear();
 
 		/// Signifies no data
 		void PackNil();
@@ -38,16 +42,13 @@ namespace MSGPack
 		void PackNumber(const T val_);
 
 		/// Must be null-terminated
-		void PackString(const char* val_);
+		void PackString(const std::string& val_);
 
 		/// Binary in form of [val_ = ptr, len_ = size]
 		void PackBinary(const u8* const val_, const u32 len_);
 
 		/// Packs the ext type with the integer and data_
 		void PackExt(const i32 type_, const u8* const data_, const u32 len_);
-
-		/// Packs timestamps defined in the spec
-		void PackTime(const u32 epochNS_, const u32 epochS_);
 
 		/// Starts an array with the size determined between this call and EndArray()
 		void StartArray();
@@ -135,12 +136,12 @@ namespace MSGPack
 	template <u32 Size>
 	Packer<Size>::Packer()
 	{
-		dataStaticSize = 0;
-
 		if (Size != -1)
 		{
 			std::array<u8, Size>& arr = std::get<std::array<u8, Size>>(data);
 			arr.fill('\0');
+
+			dataStaticSize = 0;
 		}
 	}
 
@@ -149,6 +150,25 @@ namespace MSGPack
 	{
 		// No open arrays/maps
 		assert(containerStartIdxs.size() == 0);
+	}
+
+	template <u32 Size>
+	void Packer<Size>::Clear()
+	{
+		while (!containerStartIdxs.empty())
+		{
+			containerStartIdxs.pop();
+		}
+
+		if constexpr (Size == -1)
+		{
+			std::vector<u8>& arr = std::get<std::vector<u8>>(data);
+			arr.clear();
+		}
+		else
+		{
+			dataStaticSize = 0;
+		}
 	}
 
 	template <u32 Size>
@@ -276,29 +296,29 @@ namespace MSGPack
 	}
 
 	template <u32 Size>
-	void Packer<Size>::PackString(const char* val_)
+	void Packer<Size>::PackString(const std::string& val_)
 	{
 		// Include null-terminator
-		const u32 len = strlen(val_) + 1;
+		const u32 len = val_.length() + 1;
 
 		if (len <= 31)
 		{
-			PackFixStr(val_, len);
+			PackFixStr(val_.data(), len);
 		}
 		else if (len <= std::numeric_limits<u8>::max())
 		{
 			// <= 2^8 - 1
-			PackStr8(val_, len);
+			PackStr8(val_.data(), len);
 		}
 		else if (len <= std::numeric_limits<u16>::max())
 		{
 			// <= 2^16 - 1
-			PackStr16(val_, len);
+			PackStr16(val_.data(), len);
 		}
 		else if (len <= std::numeric_limits<u32>::max())
 		{
 			// <= 2^32 - 1
-			PackStr32(val_, len);
+			PackStr32(val_.data(), len);
 		}
 		else
 		{
@@ -389,43 +409,6 @@ namespace MSGPack
 		if (containerStartIdxs.size())
 		{
 			containerStartIdxs.top().numItems++;
-		}
-	}
-
-	template <u32 Size>
-	void Packer<Size>::PackTime(const u32 epochNS_, const u32 epochS_)
-	{
-		if ((epochS_ >> 34) == 0)
-		{
-			const u64 data64 = (epochNS_ << 34) | epochS_;
-
-			if ((data64 & 0xffffffff00000000L) == 0)
-			{
-				// Time32
-				const u32 data32 = data64;
-				PackFixExt4(-1, (u8*)&data32);
-			}
-			else
-			{
-				// Time64
-				PackFixExt8(-1, (u8*)&data64);
-			}
-		}
-		else
-		{
-			// Time96
-#pragma pack(push, 1)
-			struct
-			{
-				u32 a;
-				i64 b;
-			} combined;
-#pragma pack(pop)
-			static_assert(sizeof(combined) == 12);
-			combined.a = epochNS_;
-			combined.b = epochS_;
-
-			PackExt8(-1, (u8*)&combined, sizeof(combined));
 		}
 	}
 
@@ -555,7 +538,7 @@ namespace MSGPack
 	template <u32 Size>
 	void Packer<Size>::PackFixUInt(const u8 val_)
 	{
-		// Replace first bit in val with 0
+		// Replace last bit in val with 0
 		const u8 val = val_ & ~(1 << 7);
 
 		PushByte(val);
@@ -564,7 +547,7 @@ namespace MSGPack
 	template <u32 Size>
 	void Packer<Size>::PackFixInt(const i8 val_)
 	{
-		// Replace first 3 bits in val with 1
+		// Replace last 3 bits in val with 1
 		u8 val = val_;
 		val    = val | (1 << 7);
 		val    = val | (1 << 6);
@@ -576,7 +559,7 @@ namespace MSGPack
 	template <u32 Size>
 	void Packer<Size>::PackFixStr(const char* val_, const u8 len_)
 	{
-		// Replace first 3 bits in len_ with 101
+		// Replace last 3 bits in len_ with 101
 		u8 val = len_;
 		val    = val |  (1 << 7);
 		val    = val & ~(1 << 6);
@@ -1026,10 +1009,11 @@ namespace MSGPack
 		bytes[1] = nLen			 & 0xFF;
 		bytes[2] = (nLen >> 8)   & 0xFF;
 		bytes[3] = (nLen >> 16)  & 0xFF;
-		bytes[4] = nType		 & 0xFF;
-		bytes[5] = (nType >> 8)  & 0xFF;
-		bytes[6] = (nType >> 16) & 0xFF;
-		bytes[7] = (nType >> 24) & 0xFF;
+		bytes[4] = (nLen >> 24)  & 0xFF;
+		bytes[5] = nType		 & 0xFF;
+		bytes[6] = (nType >> 8)  & 0xFF;
+		bytes[7] = (nType >> 16) & 0xFF;
+		bytes[8] = (nType >> 24) & 0xFF;
 
 		PushBytes(bytes, sizeof(bytes));
 		PushBytes(data_, len_);
