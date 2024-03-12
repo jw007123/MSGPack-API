@@ -2,6 +2,7 @@
 
 #include "Literals.h"
 #include "Bytecodes.h"
+#include "Defines.h"
 
 #ifdef _WINDOWS
 	#define NOMINMAX
@@ -16,13 +17,12 @@
 #include <vector>
 #include <variant>
 #include <stack>
-#include <optional>
 #include <stdexcept>
 
 namespace MSGPack 
 {
 	/// No Time API
-	template <bool Secure = _DEBUG>
+	template <bool Secure = SecureBase>
 	class Unpacker
 	{
 	public:

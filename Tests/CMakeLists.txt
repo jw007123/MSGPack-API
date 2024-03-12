@@ -7,7 +7,8 @@ elseif (UNIX)
 	set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 endif()
 
-add_executable(Tests "Main.cpp")
+add_executable(Tests "Tests.cpp" "Main.cpp")
 
 target_include_directories(Tests PUBLIC "../Include")
 target_include_directories(Tests PUBLIC "../Examples")
+target_include_directories(Tests PUBLIC "../Tests")

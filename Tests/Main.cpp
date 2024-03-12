@@ -9,13 +9,22 @@
 
 int main()
 {
-	MSGPack::Packer<100> packer;
-	packer.PackBool(true);
-	packer.PackNumber<i16>(1000);
+	MSGPack::Packer<> packer;
+	packer.StartMap();
+	for (usize i = 0; i < 10000; ++i)
+	{
+		packer.PackString(std::to_string(i));
+		packer.PackNumber<f32>(100.0f);
+	}
+	packer.EndMap();
 
 	MSGPack::Unpacker<> unpacker(packer.Message());
-	unpacker.UnpackBool();
-	unpacker.UnpackNumber<i16>();
+	const usize sz = unpacker.UnpackMap();
+	for (usize i = 0; i < sz; ++i)
+	{
+		unpacker.UnpackString();
+		unpacker.UnpackNumber<f32>();
+	}
 
 	std::this_thread::sleep_for(std::chrono::seconds(5));
 	return 0;
