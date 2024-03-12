@@ -4,12 +4,21 @@
 #include "Bytecodes.h"
 #include "Defines.h"
 
-#ifdef _WINDOWS
+#if defined(_WINDOWS)
 	#define NOMINMAX
 	#include "winsock2.h"
 	#pragma comment(lib, "Ws2_32.lib")
 #else
-	#include <arpa/inet.h>
+	#if defined(__linux__)
+		#include <endian.h>
+	#elif defined(__FreeBSD__) || defined(__NetBSD__)
+		#include <sys/endian.h>
+	#elif defined(__OpenBSD__)
+		#include <sys/types.h>
+		#define hto16be(x) htobe16(x)
+		#define hto32be(x) htobe32(x)
+		#define hto64be(x) htobe64(x)
+	#endif
 #endif
 
 #include <cassert>
@@ -22,8 +31,19 @@
 
 namespace MSGPack
 {
-	/// Indicate Size = std::numeric_limits<u32>::max() for dynamic. No Time API
-	template <u32 Size = std::numeric_limits<u32>::max(), bool Secure = SecureBase>
+	/*
+	*	Size   := If != std::numeric_limits<u32>::max(), uses a fixed
+	*			  store on the stack of Size bytes.
+	* 
+	*   Secure := Performs certain run-time checks to guard against
+	*			  incorrectly-packed data
+	*
+	*	Local  := Disables hton[s/l/ll] endianness conversions on the assumption
+	*			  that packing and unpacking is an operation local to the PC.
+	*/
+	template <u32  Size   = std::numeric_limits<u32>::max(),
+			  bool Secure = SecureBase,
+			  bool Local  = false>
 	class Packer
 	{
 	public:
@@ -95,6 +115,11 @@ namespace MSGPack
 		/// Changes the selection of bytes starting at position_ to bytes_
 		void ChangeBytes(const u64 position_, const u8* const bytes_, const u32 len_);
 
+		/// Host -> Network byte order functions
+		u16 HostToNetwork(const u16 val_) const;
+		u32 HostToNetwork(const u32 val_) const;
+		u64 HostToNetwork(const u64 val_) const;
+
 		/// Fix[type] functions
 		void PackFixUInt(const u8 val_);
 		void PackFixInt(const i8 val_);
@@ -140,8 +165,8 @@ namespace MSGPack
 	*	Public
 	*/
 
-	template <u32 Size, bool Secure>
-	Packer<Size, Secure>::Packer()
+	template <u32 Size, bool Secure, bool Local>
+	Packer<Size, Secure, Local>::Packer()
 	{
 		if constexpr (Size != std::numeric_limits<u32>::max())
 		{
@@ -156,8 +181,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	Packer<Size, Secure>::~Packer()
+	template <u32 Size, bool Secure, bool Local>
+	Packer<Size, Secure, Local>::~Packer()
 	{
 		// No open arrays/maps
 		if constexpr (Secure)
@@ -169,8 +194,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::Clear()
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::Clear()
 	{
 		while (!containerStartIdxs.empty())
 		{
@@ -188,8 +213,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackNil()
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackNil()
 	{
 		PushByte(ByteCodes::Nil);
 
@@ -200,8 +225,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackBool(const bool val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackBool(const bool val_)
 	{
 		if (val_)
 		{
@@ -219,9 +244,9 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
+	template <u32 Size, bool Secure, bool Local>
 	template <typename T>
-	void Packer<Size, Secure>::PackNumber(const T val_)
+	void Packer<Size, Secure, Local>::PackNumber(const T val_)
 	{
 		if constexpr (std::is_unsigned_v<T> && std::is_integral_v<T>)
 		{
@@ -324,8 +349,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackString(const std::string& val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackString(const std::string& val_)
 	{
 		const u32 len = val_.length();
 
@@ -363,8 +388,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackBinary(const u8* const val_, const u32 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackBinary(const u8* const val_, const u32 len_)
 	{
 		if (len_ <= std::numeric_limits<u8>::max())
 		{
@@ -396,8 +421,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackExt(const i32 type_, const u8* const data_, const u32 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackExt(const i32 type_, const u8* const data_, const u32 len_)
 	{
 		if (len_ == 1)
 		{
@@ -446,8 +471,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::StartArray()
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::StartArray()
 	{
 		// Add to map/array size. This goes before we push a new array as we're now counting
 		// for that one instead
@@ -460,8 +485,8 @@ namespace MSGPack
 		containerStartIdxs.push(StartAndNumItems{ PushByte(ByteCodes::NeverUse), 0 });
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::EndArray()
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::EndArray()
 	{
 		const StartAndNumItems arrData = containerStartIdxs.top();
 		if (arrData.numItems <= 15)
@@ -477,7 +502,7 @@ namespace MSGPack
 		}
 		else if (arrData.numItems <= std::numeric_limits<u16>::max())
 		{
-			const u16 nVal = htons(arrData.numItems);
+			const u16 nVal = HostToNetwork((u16)arrData.numItems);
 
 			u8 bytes[1 + sizeof(u16)];
 			bytes[0] = ByteCodes::Arr16;
@@ -488,7 +513,7 @@ namespace MSGPack
 		}
 		else if (arrData.numItems <= std::numeric_limits<u32>::max())
 		{
-			const u32 nVal = htonl(arrData.numItems);
+			const u32 nVal = HostToNetwork((u32)arrData.numItems);
 
 			u8 bytes[1 + sizeof(u32)];
 			bytes[0] = ByteCodes::Arr32;
@@ -511,8 +536,8 @@ namespace MSGPack
 		containerStartIdxs.pop();
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::StartMap()
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::StartMap()
 	{
 		// Add to map/array size. This goes before we push a new map as we're now counting
 		// for that one instead
@@ -525,8 +550,8 @@ namespace MSGPack
 		containerStartIdxs.push(StartAndNumItems{ PushByte(ByteCodes::NeverUse), 0 });
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::EndMap()
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::EndMap()
 	{
 		// Get top, check it is key : value and then / 2 to make rest of func easier
 		StartAndNumItems mapData = containerStartIdxs.top();
@@ -552,7 +577,7 @@ namespace MSGPack
 		}
 		else if (mapData.numItems <= (std::numeric_limits<u16>::max() * 2))
 		{
-			const u16 nVal = htons(mapData.numItems);
+			const u16 nVal = HostToNetwork((u16)mapData.numItems);
 
 			u8 bytes[1 + sizeof(u16)];
 			bytes[0] = ByteCodes::Map16;
@@ -563,7 +588,7 @@ namespace MSGPack
 		}
 		else if (mapData.numItems <= (std::numeric_limits<u32>::max() * 2))
 		{
-			const u32 nVal = htonl(mapData.numItems);
+			const u32 nVal = HostToNetwork((u32)mapData.numItems);
 
 			u8 bytes[1 + sizeof(u32)];
 			bytes[0] = ByteCodes::Map32;
@@ -587,8 +612,8 @@ namespace MSGPack
 		containerStartIdxs.pop();
 	}
 
-	template <u32 Size, bool Secure>
-	u64 Packer<Size, Secure>::CurrentSize() const
+	template <u32 Size, bool Secure, bool Local>
+	u64 Packer<Size, Secure, Local>::CurrentSize() const
 	{
 		if constexpr (Size == std::numeric_limits<u32>::max())
 		{
@@ -601,8 +626,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	std::pair<void*, u64> Packer<Size, Secure>::Message() const
+	template <u32 Size, bool Secure, bool Local>
+	std::pair<void*, u64> Packer<Size, Secure, Local>::Message() const
 	{
 		if constexpr (Size == std::numeric_limits<u32>::max())
 		{
@@ -620,8 +645,59 @@ namespace MSGPack
 	*	Private
 	*/
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackFixUInt(const u8 val_)
+	template <u32 Size, bool Secure, bool Local>
+	u16 Packer<Size, Secure, Local>::HostToNetwork(const u16 val_) const
+	{
+		if constexpr (Local)
+		{
+			return val_;
+		}
+		else
+		{
+			#if defined(_WINDOWS)
+				return htons(val_);
+			#else
+				return htobe16(val_);
+			#endif
+		}
+	}
+
+	template <u32 Size, bool Secure, bool Local>
+	u32 Packer<Size, Secure, Local>::HostToNetwork(const u32 val_) const
+	{
+		if constexpr (Local)
+		{
+			return val_;
+		}
+		else
+		{
+			#if defined(_WINDOWS)
+				return htonl(val_);
+			#else
+				return htobe32(val_);
+			#endif
+		}
+	}
+
+	template <u32 Size, bool Secure, bool Local>
+	u64 Packer<Size, Secure, Local>::HostToNetwork(const u64 val_) const
+	{
+		if constexpr (Local)
+		{
+			return val_;
+		}
+		else
+		{
+			#if defined(_WINDOWS)
+				return htonll(val_);
+			#else
+				return htobe64(val_);
+			#endif
+		}
+	}
+
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackFixUInt(const u8 val_)
 	{
 		// Replace last bit in val with 0
 		const u8 val = val_ & ~(1 << 7);
@@ -629,8 +705,8 @@ namespace MSGPack
 		PushByte(val);
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackFixInt(const i8 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackFixInt(const i8 val_)
 	{
 		// Replace last 3 bits in val with 1
 		u8 val = val_;
@@ -641,8 +717,8 @@ namespace MSGPack
 		PushByte(val);
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackFixStr(const char* val_, const u8 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackFixStr(const char* val_, const u8 len_)
 	{
 		// Replace last 3 bits in len_ with 101
 		u8 val = len_;
@@ -654,8 +730,8 @@ namespace MSGPack
 		PushBytes((u8*)val_, len_);
 	}
 
-	template <u32 Size, bool Secure>
-	u64 Packer<Size, Secure>::PushByte(const u8 byte_)
+	template <u32 Size, bool Secure, bool Local>
+	u64 Packer<Size, Secure, Local>::PushByte(const u8 byte_)
 	{
 		if constexpr (Size == std::numeric_limits<u32>::max())
 		{
@@ -673,8 +749,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	u64 Packer<Size, Secure>::PushBytes(const u8* const bytes_, const u64 size_)
+	template <u32 Size, bool Secure, bool Local>
+	u64 Packer<Size, Secure, Local>::PushBytes(const u8* const bytes_, const u64 size_)
 	{
 		if constexpr (Size == std::numeric_limits<u32>::max())
 		{
@@ -693,8 +769,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::ChangeByte(const u64 position_, const u8 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::ChangeByte(const u64 position_, const u8 val_)
 	{
 		if constexpr (Size == std::numeric_limits<u32>::max())
 		{
@@ -708,8 +784,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::ChangeBytes(const u64 position_, const u8* const bytes_, const u32 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::ChangeBytes(const u64 position_, const u8* const bytes_, const u32 len_)
 	{
 		if constexpr (Size == std::numeric_limits<u32>::max())
 		{
@@ -728,8 +804,8 @@ namespace MSGPack
 		}
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackU8(const u8 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackU8(const u8 val_)
 	{
 		u8 bytes[1 + sizeof(u8)];
 		bytes[0] = ByteCodes::UInt8;
@@ -738,10 +814,10 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackU16(const u16 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackU16(const u16 val_)
 	{
-		const u16 nVal = htons(val_);
+		const u16 nVal = HostToNetwork(val_);
 
 		u8 bytes[1 + sizeof(u16)];
 		bytes[0] = ByteCodes::UInt16;
@@ -751,10 +827,10 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackU32(const u32 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackU32(const u32 val_)
 	{
-		const u32 nVal = htonl(val_);
+		const u32 nVal = HostToNetwork(val_);
 
 		u8 bytes[1 + sizeof(u32)];
 		bytes[0] = ByteCodes::UInt32;
@@ -766,10 +842,10 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackU64(const u64 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackU64(const u64 val_)
 	{
-		const u64 nVal = htonll(val_);
+		const u64 nVal = HostToNetwork(val_);
 
 		u8 bytes[1 + sizeof(u64)];
 		bytes[0] = ByteCodes::UInt64;
@@ -785,8 +861,8 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackI8(const i8 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackI8(const i8 val_)
 	{
 		u8 bytes[1 + sizeof(i8)];
 		bytes[0] = ByteCodes::Int8;
@@ -795,12 +871,12 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackI16(const i16 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackI16(const i16 val_)
 	{
 		// The u16/u32/u64 in these functions aren't typos; it makes
 		// no difference either way
-		const u16 nVal = htons(val_);
+		const u16 nVal = HostToNetwork(*(u16*)&val_);
 
 		u8 bytes[1 + sizeof(u16)];
 		bytes[0] = ByteCodes::Int16;
@@ -810,10 +886,10 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackI32(const i32 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackI32(const i32 val_)
 	{
-		const u32 nVal = htonl(val_);
+		const u32 nVal = HostToNetwork(*(u32*)&val_);
 
 		u8 bytes[1 + sizeof(u32)];
 		bytes[0] = ByteCodes::Int32;
@@ -825,10 +901,10 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackI64(const i64 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackI64(const i64 val_)
 	{
-		const u64 nVal = htonll(val_);
+		const u64 nVal = HostToNetwork(*(u64*)&val_);
 
 		u8 bytes[1 + sizeof(u64)];
 		bytes[0] = ByteCodes::Int64;
@@ -844,11 +920,11 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackF32(const f32 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackF32(const f32 val_)
 	{
 		// We can recover f32/f64 values back later
-		const u32 nVal = htonf(val_);
+		const u32 nVal = HostToNetwork(*(u32*)&val_);
 
 		u8 bytes[1 + sizeof(u32)];
 		bytes[0] = ByteCodes::Float32;
@@ -860,10 +936,10 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackF64(const f64 val_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackF64(const f64 val_)
 	{
-		const u64 nVal = htond(val_);
+		const u64 nVal = HostToNetwork(*(u64*)&val_);
 
 		u8 bytes[1 + sizeof(u64)];
 		bytes[0] = ByteCodes::Float64;
@@ -879,8 +955,8 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackStr8(const char* val_, const u8 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackStr8(const char* val_, const u8 len_)
 	{
 		u8 bytes[1 + sizeof(u8)];
 		bytes[0] = ByteCodes::String8;
@@ -890,10 +966,10 @@ namespace MSGPack
 		PushBytes((u8*)val_, len_);
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackStr16(const char* val_, const u16 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackStr16(const char* val_, const u16 len_)
 	{
-		const u16 nLen = htons(len_);
+		const u16 nLen = HostToNetwork(len_);
 
 		u8 bytes[1 + sizeof(u16)];
 		bytes[0] = ByteCodes::String16;
@@ -904,10 +980,10 @@ namespace MSGPack
 		PushBytes((u8*)val_, len_);
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackStr32(const char* val_, const u32 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackStr32(const char* val_, const u32 len_)
 	{
-		const u32 nLen = htonl(len_);
+		const u32 nLen = HostToNetwork(len_);
 
 		u8 bytes[1 + sizeof(u32)];
 		bytes[0] = ByteCodes::String32;
@@ -920,8 +996,8 @@ namespace MSGPack
 		PushBytes((u8*)val_, len_);
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackBin8(const u8* const val_, const u8 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackBin8(const u8* const val_, const u8 len_)
 	{
 		u8 bytes[1 + sizeof(u8)];
 		bytes[0] = ByteCodes::Bin8;
@@ -931,10 +1007,10 @@ namespace MSGPack
 		PushBytes(val_, len_);
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackBin16(const u8* const val_, const u16 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackBin16(const u8* const val_, const u16 len_)
 	{
-		const u16 nLen = htons(len_);
+		const u16 nLen = HostToNetwork(len_);
 
 		u8 bytes[1 + sizeof(u16)];
 		bytes[0] = ByteCodes::Bin16;
@@ -945,10 +1021,10 @@ namespace MSGPack
 		PushBytes(val_, len_);
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackBin32(const u8* const val_, const u32 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackBin32(const u8* const val_, const u32 len_)
 	{
-		const u32 nLen = htonl(len_);
+		const u32 nLen = HostToNetwork(len_);
 
 		u8 bytes[1 + sizeof(u32)];
 		bytes[0] = ByteCodes::Bin32;
@@ -961,11 +1037,11 @@ namespace MSGPack
 		PushBytes(val_, len_);
 	}
 
-	template <u32 Size, bool Secure>
+	template <u32 Size, bool Secure, bool Local>
 	template <u32 N>
-	void Packer<Size, Secure>::PackFixExtN(const i32 type_, const u8* const data_)
+	void Packer<Size, Secure, Local>::PackFixExtN(const i32 type_, const u8* const data_)
 	{
-		const u32 nType = htonl(type_);
+		const u32 nType = HostToNetwork(*(u32*)&type_);
 
 		u8 bytes[1 + sizeof(u32) + (1 << N)];
 		bytes[0] = ByteCodes::FixExt1 + N;
@@ -982,10 +1058,10 @@ namespace MSGPack
 		PushBytes(bytes, sizeof(bytes));
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackExt8(const i32 type_, const u8* const data_, const u8 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackExt8(const i32 type_, const u8* const data_, const u8 len_)
 	{
-		const u32 nType = htonl(type_);
+		const u32 nType = HostToNetwork(*(u32*)&type_);
 
 		u8 bytes[1 + sizeof(u8) + sizeof(u32)];
 		bytes[0] = ByteCodes::Ext8;
@@ -999,11 +1075,11 @@ namespace MSGPack
 		PushBytes(data_, len_);
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackExt16(const i32 type_, const u8* const data_, const u16 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackExt16(const i32 type_, const u8* const data_, const u16 len_)
 	{
-		const u32 nType = htonl(type_);
-		const u16 nLen  = htons(len_);
+		const u32 nType = HostToNetwork(*(u32*)&type_);
+		const u16 nLen  = HostToNetwork(len_);
 
 		u8 bytes[1 + sizeof(u16) + sizeof(u32)];
 		bytes[0] = ByteCodes::Ext16;
@@ -1018,11 +1094,11 @@ namespace MSGPack
 		PushBytes(data_, len_);
 	}
 
-	template <u32 Size, bool Secure>
-	void Packer<Size, Secure>::PackExt32(const i32 type_, const u8* const data_, const u32 len_)
+	template <u32 Size, bool Secure, bool Local>
+	void Packer<Size, Secure, Local>::PackExt32(const i32 type_, const u8* const data_, const u32 len_)
 	{
-		const u32 nType = htonl(type_);
-		const u32 nLen  = htonl(len_);
+		const u32 nType = HostToNetwork(*(u32*)&type_);
+		const u32 nLen  = HostToNetwork(len_);
 
 		u8 bytes[1 + sizeof(u32) + sizeof(u32)];
 		bytes[0] = ByteCodes::Ext32;

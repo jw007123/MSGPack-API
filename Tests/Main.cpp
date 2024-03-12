@@ -1,4 +1,4 @@
-#ifdef _WIN32
+#if defined(_WINDOWS)
 	#define _CRT_SECURE_NO_WARNINGS 1
 #endif
 

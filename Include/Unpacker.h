@@ -4,12 +4,21 @@
 #include "Bytecodes.h"
 #include "Defines.h"
 
-#ifdef _WINDOWS
+#if defined(_WINDOWS)
 	#define NOMINMAX
 	#include "winsock2.h"
 	#pragma comment(lib, "Ws2_32.lib")
 #else
-	#include <arpa/inet.h>
+	#if defined(__linux__)
+		#include <endian.h>
+	#elif defined(__FreeBSD__) || defined(__NetBSD__)
+		#include <sys/endian.h>
+	#elif defined(__OpenBSD__)
+		#include <sys/types.h>
+		#define be16toh(x) betoh16(x)
+		#define be32toh(x) betoh32(x)
+		#define be64toh(x) betoh64(x)
+	#endif
 #endif
 
 #include <cassert>
@@ -21,8 +30,15 @@
 
 namespace MSGPack 
 {
-	/// No Time API
-	template <bool Secure = SecureBase>
+	/*
+	*   Secure := Performs certain run-time checks to guard against
+	*			  incorrectly-packed data
+	*
+	*	Local  := Disables ntoh[s/l/ll] endianness conversions on the assumption
+	*			  that packing and unpacking is an operation local to the PC.
+	*/
+	template <bool Secure = SecureBase,
+			  bool Local  = false>
 	class Unpacker
 	{
 	public:
@@ -73,6 +89,11 @@ namespace MSGPack
 		template <typename T>
 		T* GetData() const;
 
+		/// Network -> Host byte order functions
+		u16 NetworkToHost(const u16 val_) const;
+		u32 NetworkToHost(const u32 val_) const;
+		u64 NetworkToHost(const u64 val_) const;
+
 		/// Fix[type] functions
 		u8			UnpackFixUInt();
 		i8			UnpackFixInt();
@@ -120,22 +141,22 @@ namespace MSGPack
 	*	Public
 	*/
 
-	template <bool Secure>
-	Unpacker<Secure>::Unpacker(const std::pair<void*, u64>& memBlock_) :
+	template <bool Secure, bool Local>
+	Unpacker<Secure, Local>::Unpacker(const std::pair<void*, u64>& memBlock_) :
 					  blockPtr(memBlock_.first),
 					  blockSize(memBlock_.second)
 	{
 		blockPos = 0;
 	}
 
-	template <bool Secure>
-	void Unpacker<Secure>::Reset()
+	template <bool Secure, bool Local>
+	void Unpacker<Secure, Local>::Reset()
 	{
 		blockPos = 0;
 	}
 
-	template <bool Secure>
-	ByteCodes Unpacker<Secure>::PeekType() const
+	template <bool Secure, bool Local>
+	ByteCodes Unpacker<Secure, Local>::PeekType() const
 	{
 		// Get base code
 		const ByteCodes code = (ByteCodes)(*GetData<u8>());
@@ -166,8 +187,8 @@ namespace MSGPack
 		return code;
 	}
 
-	template <bool Secure>
-	void Unpacker<Secure>::UnpackNil()
+	template <bool Secure, bool Local>
+	void Unpacker<Secure, Local>::UnpackNil()
 	{
 		const ByteCodes code = PeekType();
 		if (code != ByteCodes::Nil)
@@ -185,8 +206,8 @@ namespace MSGPack
 		blockPos++;
 	}
 
-	template <bool Secure>
-	bool Unpacker<Secure>::UnpackBool()
+	template <bool Secure, bool Local>
+	bool Unpacker<Secure, Local>::UnpackBool()
 	{
 		const ByteCodes code = PeekType();
 		if ((code != ByteCodes::BoolTrue) && (code != ByteCodes::BoolFalse))
@@ -205,9 +226,9 @@ namespace MSGPack
 		return (code == ByteCodes::BoolTrue) ? true : false;
 	}
 
-	template <bool Secure>
+	template <bool Secure, bool Local>
 	template <typename T>
-	T Unpacker<Secure>::UnpackNumber()
+	T Unpacker<Secure, Local>::UnpackNumber()
 	{
 		const ByteCodes code = PeekType();
 
@@ -286,8 +307,8 @@ namespace MSGPack
 		return std::numeric_limits<T>::signaling_NaN();
 	}
 
-	template <bool Secure>
-	std::string Unpacker<Secure>::UnpackString()
+	template <bool Secure, bool Local>
+	std::string Unpacker<Secure, Local>::UnpackString()
 	{
 		const ByteCodes code = PeekType();
 
@@ -326,8 +347,8 @@ namespace MSGPack
 		return std::string();
 	}
 
-	template <bool Secure>
-	std::pair<void*, u32> Unpacker<Secure>::UnpackBinary()
+	template <bool Secure, bool Local>
+	std::pair<void*, u32> Unpacker<Secure, Local>::UnpackBinary()
 	{
 		const ByteCodes code = PeekType();
 
@@ -361,8 +382,8 @@ namespace MSGPack
 		return std::make_pair<void*, u32>(nullptr, 0);
 	}
 
-	template <bool Secure>
-	std::tuple<i32, void*, u32> Unpacker<Secure>::UnpackExt()
+	template <bool Secure, bool Local>
+	std::tuple<i32, void*, u32> Unpacker<Secure, Local>::UnpackExt()
 	{
 		const ByteCodes code = PeekType();
 
@@ -421,8 +442,8 @@ namespace MSGPack
 		return std::make_tuple<i32, void*, u32>(0, nullptr, 0);
 	}
 
-	template <bool Secure>
-	u32 Unpacker<Secure>::UnpackArray()
+	template <bool Secure, bool Local>
+	u32 Unpacker<Secure, Local>::UnpackArray()
 	{
 		const ByteCodes code = PeekType();
 
@@ -458,8 +479,8 @@ namespace MSGPack
 		return 0;
 	}
 
-	template <bool Secure>
-	u32 Unpacker<Secure>::UnpackMap()
+	template <bool Secure, bool Local>
+	u32 Unpacker<Secure, Local>::UnpackMap()
 	{
 		const ByteCodes code = PeekType();
 
@@ -499,8 +520,8 @@ namespace MSGPack
 	*	Private
 	*/
 
-	template <bool Secure>
-	void Unpacker<Secure>::IncrementPosition(const u64 increment_)
+	template <bool Secure, bool Local>
+	void Unpacker<Secure, Local>::IncrementPosition(const u64 increment_)
 	{
 		if constexpr (Secure)
 		{
@@ -513,9 +534,9 @@ namespace MSGPack
 		blockPos += increment_;
 	}
 
-	template <bool Secure>
+	template <bool Secure, bool Local>
 	template <typename T>
-	T* Unpacker<Secure>::GetData() const
+	T* Unpacker<Secure, Local>::GetData() const
 	{
 		if constexpr (Secure)
 		{
@@ -528,8 +549,59 @@ namespace MSGPack
 		return (T*)((u8*)blockPtr + blockPos);
 	}
 
-	template <bool Secure>
-	u8 Unpacker<Secure>::UnpackFixUInt()
+	template <bool Secure, bool Local>
+	u16 Unpacker<Secure, Local>::NetworkToHost(const u16 val_) const
+	{
+		if constexpr (Local)
+		{
+			return val_;
+		}
+		else
+		{
+			#if defined(_WINDOWS)
+				return ntohs(val_);
+			#else
+				return betoh16(val_);
+			#endif
+		}
+	}
+
+	template <bool Secure, bool Local>
+	u32 Unpacker<Secure, Local>::NetworkToHost(const u32 val_) const
+	{
+		if constexpr (Local)
+		{
+			return val_;
+		}
+		else
+		{
+			#if defined(_WINDOWS)
+				return ntohl(val_);
+			#else
+				return betoh32(val_);
+			#endif
+		}
+	}
+
+	template <bool Secure, bool Local>
+	u64 Unpacker<Secure, Local>::NetworkToHost(const u64 val_) const
+	{
+		if constexpr (Local)
+		{
+			return val_;
+		}
+		else
+		{
+			#if defined(_WINDOWS)
+				return ntohll(val_);
+			#else
+				return betoh64(val_);
+			#endif
+		}
+	}
+
+	template <bool Secure, bool Local>
+	u8 Unpacker<Secure, Local>::UnpackFixUInt()
 	{
 		// We want the first 7 bits
 		const u8 val = *GetData<u8>();
@@ -541,8 +613,8 @@ namespace MSGPack
 		return (val & 0x7f);
 	}
 
-	template <bool Secure>
-	i8 Unpacker<Secure>::UnpackFixInt()
+	template <bool Secure, bool Local>
+	i8 Unpacker<Secure, Local>::UnpackFixInt()
 	{
 		// We want first 5 bits
 		u8 val = *GetData<u8>();
@@ -557,8 +629,8 @@ namespace MSGPack
 		return *(i8*)&val;
 	}
 
-	template <bool Secure>
-	std::string Unpacker<Secure>::UnpackFixStr()
+	template <bool Secure, bool Local>
+	std::string Unpacker<Secure, Local>::UnpackFixStr()
 	{
 		// We want first 5 bits
 		u8 strLen = *GetData<u8>();
@@ -582,8 +654,8 @@ namespace MSGPack
 		return newStr;
 	}
 
-	template <bool Secure>
-	u8 Unpacker<Secure>::UnpackFixArr()
+	template <bool Secure, bool Local>
+	u8 Unpacker<Secure, Local>::UnpackFixArr()
 	{
 		// We want the first 4 bits
 		const u8 val = *GetData<u8>();
@@ -595,8 +667,8 @@ namespace MSGPack
 		return (val & 0x0f);
 	}
 
-	template <bool Secure>
-	u8 Unpacker<Secure>::UnpackFixMap()
+	template <bool Secure, bool Local>
+	u8 Unpacker<Secure, Local>::UnpackFixMap()
 	{
 		// We want the first 4 bits
 		const u8 val = *GetData<u8>();
@@ -608,8 +680,8 @@ namespace MSGPack
 		return (val & 0x0f);
 	}
 
-	template <bool Secure>
-	u8 Unpacker<Secure>::UnpackU8()
+	template <bool Secure, bool Local>
+	u8 Unpacker<Secure, Local>::UnpackU8()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -624,8 +696,8 @@ namespace MSGPack
 		return val;
 	}
 
-	template <bool Secure>
-	u16 Unpacker<Secure>::UnpackU16()
+	template <bool Secure, bool Local>
+	u16 Unpacker<Secure, Local>::UnpackU16()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -637,11 +709,11 @@ namespace MSGPack
 		IncrementPosition(sizeof(u16));
 
 		// Network to host
-		return ntohs(val);
+		return NetworkToHost(val);
 	}
 
-	template <bool Secure>
-	u32 Unpacker<Secure>::UnpackU32()
+	template <bool Secure, bool Local>
+	u32 Unpacker<Secure, Local>::UnpackU32()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -653,11 +725,11 @@ namespace MSGPack
 		IncrementPosition(sizeof(u32));
 
 		// Network to host
-		return ntohl(val);
+		return NetworkToHost(val);
 	}
 
-	template <bool Secure>
-	u64 Unpacker<Secure>::UnpackU64()
+	template <bool Secure, bool Local>
+	u64 Unpacker<Secure, Local>::UnpackU64()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -669,11 +741,11 @@ namespace MSGPack
 		IncrementPosition(sizeof(u64));
 
 		// Network to host
-		return ntohll(val);
+		return NetworkToHost(val);
 	}
 
-	template <bool Secure>
-	i8 Unpacker<Secure>::UnpackI8()
+	template <bool Secure, bool Local>
+	i8 Unpacker<Secure, Local>::UnpackI8()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -688,8 +760,8 @@ namespace MSGPack
 		return *(i8*)&val;
 	}
 
-	template <bool Secure>
-	i16 Unpacker<Secure>::UnpackI16()
+	template <bool Secure, bool Local>
+	i16 Unpacker<Secure, Local>::UnpackI16()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -701,14 +773,14 @@ namespace MSGPack
 		IncrementPosition(sizeof(u16));
 
 		// Network to host
-		const u16 hVal = ntohs(val);
+		const u16 hVal = NetworkToHost(val);
 
 		// Return i16
 		return *(i16*)&hVal;
 	}
 
-	template <bool Secure>
-	i32 Unpacker<Secure>::UnpackI32()
+	template <bool Secure, bool Local>
+	i32 Unpacker<Secure, Local>::UnpackI32()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -720,14 +792,14 @@ namespace MSGPack
 		IncrementPosition(sizeof(u32));
 
 		// Network to host
-		const u32 hVal = ntohl(val);
+		const u32 hVal = NetworkToHost(val);
 
 		// Return i32
 		return *(i32*)&hVal;
 	}
 
-	template <bool Secure>
-	i64 Unpacker<Secure>::UnpackI64()
+	template <bool Secure, bool Local>
+	i64 Unpacker<Secure, Local>::UnpackI64()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -739,46 +811,47 @@ namespace MSGPack
 		IncrementPosition(sizeof(u64));
 
 		// Network to host
-		const u64 hVal = ntohll(val);
+		const u64 hVal = NetworkToHost(val);
 
 		// Return i64
 		return *(i64*)&hVal;
 	}
 
-	template <bool Secure>
-	f32 Unpacker<Secure>::UnpackF32()
+	template <bool Secure, bool Local>
+	f32 Unpacker<Secure, Local>::UnpackF32()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
 
 		// Obtain value in network order
-		const u32 val = *GetData<u32>();
+		u32 val = *GetData<u32>();
+		val		= NetworkToHost(val);
 
 		// Move over sizeof(u32)
 		IncrementPosition(sizeof(u32));
 
-		// Return f32
-		return ntohf(val);
+		return *(f32*)&val;
 	}
 
-	template <bool Secure>
-	f64 Unpacker<Secure>::UnpackF64()
+	template <bool Secure, bool Local>
+	f64 Unpacker<Secure, Local>::UnpackF64()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
 
 		// Obtain value in network order
-		const u64 val = *GetData<u64>();
+		u64 val = *GetData<u64>();
+		val		= NetworkToHost(val);
 
 		// Move over sizeof(u64)
 		IncrementPosition(sizeof(u64));
 
 		// Return f64
-		return ntohd(val);
+		return *(f64*)&val;
 	}
 
-	template <bool Secure>
-	std::string Unpacker<Secure>::UnpackStr8()
+	template <bool Secure, bool Local>
+	std::string Unpacker<Secure, Local>::UnpackStr8()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -802,8 +875,8 @@ namespace MSGPack
 		return newStr;
 	}
 
-	template <bool Secure>
-	std::string Unpacker<Secure>::UnpackStr16()
+	template <bool Secure, bool Local>
+	std::string Unpacker<Secure, Local>::UnpackStr16()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -815,7 +888,7 @@ namespace MSGPack
 		IncrementPosition(sizeof(u16));
 
 		// Network to host
-		const u16 strLen = ntohs(val);
+		const u16 strLen = NetworkToHost(val);
 
 		// Pointer to next strLen bytes
 		char* strData = GetData<char>();
@@ -830,8 +903,8 @@ namespace MSGPack
 		return newStr;
 	}
 
-	template <bool Secure>
-	std::string Unpacker<Secure>::UnpackStr32()
+	template <bool Secure, bool Local>
+	std::string Unpacker<Secure, Local>::UnpackStr32()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -843,7 +916,7 @@ namespace MSGPack
 		IncrementPosition(sizeof(u32));
 
 		// Network to host
-		const u32 strLen = ntohl(val);
+		const u32 strLen = NetworkToHost(val);
 
 		// Pointer to next strLen bytes
 		char* strData = GetData<char>();
@@ -858,8 +931,8 @@ namespace MSGPack
 		return newStr;
 	}
 
-	template <bool Secure>
-	std::pair<void*, u32> Unpacker<Secure>::UnpackBin8()
+	template <bool Secure, bool Local>
+	std::pair<void*, u32> Unpacker<Secure, Local>::UnpackBin8()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -883,8 +956,8 @@ namespace MSGPack
 		return binBlob;
 	}
 
-	template <bool Secure>
-	std::pair<void*, u32> Unpacker<Secure>::UnpackBin16()
+	template <bool Secure, bool Local>
+	std::pair<void*, u32> Unpacker<Secure, Local>::UnpackBin16()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -896,7 +969,7 @@ namespace MSGPack
 		IncrementPosition(sizeof(u16));
 
 		// Network to host
-		const u16 binLen = ntohs(val);
+		const u16 binLen = NetworkToHost(val);
 
 		// Pointer to next binLen bytes
 		u8* binData = GetData<u8>();
@@ -911,8 +984,8 @@ namespace MSGPack
 		return binBlob;
 	}
 
-	template <bool Secure>
-	std::pair<void*, u32> Unpacker<Secure>::UnpackBin32()
+	template <bool Secure, bool Local>
+	std::pair<void*, u32> Unpacker<Secure, Local>::UnpackBin32()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -924,7 +997,7 @@ namespace MSGPack
 		IncrementPosition(sizeof(u32));
 
 		// Network to host
-		const u32 binLen = ntohl(val);
+		const u32 binLen = NetworkToHost(val);
 
 		// Pointer to next binLen bytes
 		u8* binData = GetData<u8>();
@@ -939,9 +1012,9 @@ namespace MSGPack
 		return binBlob;
 	}
 
-	template <bool Secure>
+	template <bool Secure, bool Local>
 	template <u32 N>
-	std::tuple<i32, void*, u32> Unpacker<Secure>::UnpackFixExt()
+	std::tuple<i32, void*, u32> Unpacker<Secure, Local>::UnpackFixExt()
 	{
 		// Get integer
 		const i32 intVal = UnpackI32();
@@ -959,8 +1032,8 @@ namespace MSGPack
 		return tuple;
 	}
 
-	template <bool Secure>
-	std::tuple<i32, void*, u32> Unpacker<Secure>::UnpackExt8()
+	template <bool Secure, bool Local>
+	std::tuple<i32, void*, u32> Unpacker<Secure, Local>::UnpackExt8()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -973,7 +1046,7 @@ namespace MSGPack
 
 		// Obtain integer value
 		const u32 valN   = *GetData<u32>();
-		const u32 intVal = ntohl(valN);
+		const u32 intVal = NetworkToHost(valN);
 
 		// Move over integer
 		IncrementPosition(sizeof(u32));
@@ -991,22 +1064,22 @@ namespace MSGPack
 		return tuple;
 	}
 
-	template <bool Secure>
-	std::tuple<i32, void*, u32> Unpacker<Secure>::UnpackExt16()
+	template <bool Secure, bool Local>
+	std::tuple<i32, void*, u32> Unpacker<Secure, Local>::UnpackExt16()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
 
 		// Obtain value
 		const u16 extLenN = *GetData<u16>();
-		const u16 extLen  = ntohs(extLenN);
+		const u16 extLen  = NetworkToHost(extLenN);
 
 		// Move over extLen
 		IncrementPosition(sizeof(u16));
 
 		// Obtain integer value
 		const u32 valN   = *GetData<u32>();
-		const u32 intVal = ntohl(valN);
+		const u32 intVal = NetworkToHost(valN);
 
 		// Move over integer
 		IncrementPosition(sizeof(u32));
@@ -1024,22 +1097,22 @@ namespace MSGPack
 		return tuple;
 	}
 
-	template <bool Secure>
-	std::tuple<i32, void*, u32> Unpacker<Secure>::UnpackExt32()
+	template <bool Secure, bool Local>
+	std::tuple<i32, void*, u32> Unpacker<Secure, Local>::UnpackExt32()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
 
 		// Obtain value
 		const u32 extLenN = *GetData<u32>();
-		const u32 extLen  = ntohl(extLenN);
+		const u32 extLen  = NetworkToHost(extLenN);
 
 		// Move over extLen
 		IncrementPosition(sizeof(u32));
 
 		// Obtain integer value
 		const u32 valN   = *GetData<u32>();
-		const u32 intVal = ntohl(valN);
+		const u32 intVal = NetworkToHost(valN);
 
 		// Move over integer
 		IncrementPosition(sizeof(u32));
