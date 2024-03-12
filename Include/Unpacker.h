@@ -27,7 +27,6 @@ namespace MSGPack
 	{
 	public:
 		Unpacker(const std::pair<void*, u64>& memBlock_);
-		~Unpacker();
 
 		/// Resets the unpack process to the beginning
 		void Reset();
@@ -117,18 +116,16 @@ namespace MSGPack
 		std::tuple<i32, void*, u32> UnpackExt32();
 	};
 
+	/*
+	*	Public
+	*/
+
 	template <bool Secure>
 	Unpacker<Secure>::Unpacker(const std::pair<void*, u64>& memBlock_) :
 					  blockPtr(memBlock_.first),
 					  blockSize(memBlock_.second)
 	{
 		blockPos = 0;
-	}
-
-	template <bool Secure>
-	Unpacker<Secure>::~Unpacker()
-	{
-
 	}
 
 	template <bool Secure>
@@ -498,6 +495,10 @@ namespace MSGPack
 		return 0;
 	}
 
+	/*
+	*	Private
+	*/
+
 	template <bool Secure>
 	void Unpacker<Secure>::IncrementPosition(const u64 increment_)
 	{
@@ -549,8 +550,8 @@ namespace MSGPack
 		// Increment blockPos by 1
 		IncrementPosition(1);
 
-		// val & 1110 1111
-		val = (val & 0xef);
+		// val & 0001 1111
+		val = (val & 0x1f);
 
 		// Cast to i8
 		return *(i8*)&val;
@@ -565,8 +566,8 @@ namespace MSGPack
 		// Increment blockPos by 1
 		IncrementPosition(1);
 
-		// strLen & 1011 1111
-		strLen = (strLen & 0xbf);
+		// strLen & 0001 1111
+		strLen = (strLen & 0x1f);
 
 		// Pointer to next strLen bytes
 		char* strData = GetData<char>();
@@ -590,8 +591,8 @@ namespace MSGPack
 		// Increment blockPos by 1
 		IncrementPosition(1);
 
-		// val & 1001 1111
-		return (val & 0x9f);
+		// val & 0000 1111
+		return (val & 0x0f);
 	}
 
 	template <bool Secure>
@@ -603,8 +604,8 @@ namespace MSGPack
 		// Increment blockPos by 1
 		IncrementPosition(1);
 
-		// val & 1000 1111
-		return (val & 0x8f);
+		// val & 0000 1111
+		return (val & 0x0f);
 	}
 
 	template <bool Secure>
@@ -756,11 +757,8 @@ namespace MSGPack
 		// Move over sizeof(u32)
 		IncrementPosition(sizeof(u32));
 
-		// Network to host
-		const u32 hVal = ntohl(val);
-
 		// Return f32
-		return *(f32*)&hVal;
+		return ntohf(val);
 	}
 
 	template <bool Secure>
@@ -775,11 +773,8 @@ namespace MSGPack
 		// Move over sizeof(u64)
 		IncrementPosition(sizeof(u64));
 
-		// Network to host
-		const u64 hVal = ntohll(val);
-
 		// Return f64
-		return *(f64*)&hVal;
+		return ntohd(val);
 	}
 
 	template <bool Secure>

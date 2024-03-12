@@ -121,17 +121,18 @@ namespace MSGPack
 		void PackBin32(const u8* const val_, const u32 len_);
 
 		/// FixExt
-		void PackFixExt1(const i32 type_, const u8* const data_);
-		void PackFixExt2(const i32 type_, const u8* const data_);
-		void PackFixExt4(const i32 type_, const u8* const data_);
-		void PackFixExt8(const i32 type_, const u8* const data_);
-		void PackFixExt16(const i32 type_, const u8* const data_);
+		template <u32 N>
+		void PackFixExtN(const i32 type_, const u8* const data_);
 
 		/// Ext
 		void PackExt8(const i32 type_, const u8* const data_, const u8 len_);
 		void PackExt16(const i32 type_, const u8* const data_, const u16 len_);
 		void PackExt32(const i32 type_, const u8* const data_, const u32 len_);
 	};
+
+	/*
+	*	Public
+	*/
 
 	template <u32 Size>
 	Packer<Size>::Packer()
@@ -368,23 +369,23 @@ namespace MSGPack
 	{
 		if (len_ == 1)
 		{
-			PackFixExt1(type_, data_);
+			PackFixExtN<0>(type_, data_);
 		}
 		else if (len_ == 2)
 		{
-			PackFixExt2(type_, data_);
+			PackFixExtN<1>(type_, data_);
 		}
 		else if (len_ == 4)
 		{
-			PackFixExt4(type_, data_);
+			PackFixExtN<2>(type_, data_);
 		}
 		else if (len_ == 8)
 		{
-			PackFixExt8(type_, data_);
+			PackFixExtN<3>(type_, data_);
 		}
 		else if (len_ == 16)
 		{
-			PackFixExt16(type_, data_);
+			PackFixExtN<4>(type_, data_);
 		}
 		else if (len_ <= std::numeric_limits<u8>::max())
 		{
@@ -533,6 +534,10 @@ namespace MSGPack
 			return std::make_pair<void*, u64>((void*)arr.data(), dataStaticSize);
 		}
 	}
+
+	/*
+	*	Private
+	*/
 
 	template <u32 Size>
 	void Packer<Size>::PackFixUInt(const u8 val_)
@@ -856,107 +861,22 @@ namespace MSGPack
 	}
 
 	template <u32 Size>
-	void Packer<Size>::PackFixExt1(const i32 type_, const u8* const data_)
+	template <u32 N>
+	void Packer<Size>::PackFixExtN(const i32 type_, const u8* const data_)
 	{
-		const i32 nType = htonl(type_);
+		const u32 nType = htonl(type_);
 
-		u8 bytes[1 + sizeof(i32) + 1];
-		bytes[0] = ByteCodes::FixExt1;
+		u8 bytes[1 + sizeof(u32) + (1 << N)];
+		bytes[0] = ByteCodes::FixExt1 + N;
 		bytes[1] = nType		 & 0xFF;
 		bytes[2] = (nType >> 8)  & 0xFF;
 		bytes[3] = (nType >> 16) & 0xFF;
 		bytes[4] = (nType >> 24) & 0xFF;
-		bytes[5] = data_[0];
 
-		PushBytes(bytes, sizeof(bytes));
-	}
-
-	template <u32 Size>
-	void Packer<Size>::PackFixExt2(const i32 type_, const u8* const data_)
-	{
-		const i32 nType = htonl(type_);
-
-		u8 bytes[1 + sizeof(i32) + 2];
-		bytes[0] = ByteCodes::FixExt2;
-		bytes[1] = nType		 & 0xFF;
-		bytes[2] = (nType >> 8)  & 0xFF;
-		bytes[3] = (nType >> 16) & 0xFF;
-		bytes[4] = (nType >> 24) & 0xFF;
-		bytes[5] = data_[0];
-		bytes[6] = data_[1];
-
-		PushBytes(bytes, sizeof(bytes));
-	}
-
-	template <u32 Size>
-	void Packer<Size>::PackFixExt4(const i32 type_, const u8* const data_)
-	{
-		const i32 nType = htonl(type_);
-
-		u8 bytes[1 + sizeof(i32) + 4];
-		bytes[0] = ByteCodes::FixExt4;
-		bytes[1] = nType		 & 0xFF;
-		bytes[2] = (nType >> 8)  & 0xFF;
-		bytes[3] = (nType >> 16) & 0xFF;
-		bytes[4] = (nType >> 24) & 0xFF;
-		bytes[5] = data_[0];
-		bytes[6] = data_[1];
-		bytes[7] = data_[2];
-		bytes[8] = data_[3];
-
-		PushBytes(bytes, sizeof(bytes));
-	}
-
-	template <u32 Size>
-	void Packer<Size>::PackFixExt8(const i32 type_, const u8* const data_)
-	{
-		const i32 nType = htonl(type_);
-
-		u8 bytes[1 + sizeof(i32) + 8];
-		bytes[0]  = ByteCodes::FixExt8;
-		bytes[1]  = nType		  & 0xFF;
-		bytes[2]  = (nType >> 8)  & 0xFF;
-		bytes[3]  = (nType >> 16) & 0xFF;
-		bytes[4]  = (nType >> 24) & 0xFF;
-		bytes[5]  = data_[0];
-		bytes[6]  = data_[1];
-		bytes[7]  = data_[2];
-		bytes[8]  = data_[3];
-		bytes[9]  = data_[4];
-		bytes[10] = data_[5];
-		bytes[11] = data_[6];
-		bytes[12] = data_[7];
-
-		PushBytes(bytes, sizeof(bytes));
-	}
-
-	template <u32 Size>
-	void Packer<Size>::PackFixExt16(const i32 type_, const u8* const data_)
-	{
-		const i32 nType = htonl(type_);
-
-		u8 bytes[1 + sizeof(i32) + 16];
-		bytes[0]  = ByteCodes::FixExt16;
-		bytes[1]  = nType		  & 0xFF;
-		bytes[2]  = (nType >> 8)  & 0xFF;
-		bytes[3]  = (nType >> 16) & 0xFF;
-		bytes[4]  = (nType >> 24) & 0xFF;
-		bytes[5]  = data_[0];
-		bytes[6]  = data_[1];
-		bytes[7]  = data_[2];
-		bytes[8]  = data_[3];
-		bytes[9]  = data_[4];
-		bytes[10] = data_[5];
-		bytes[11] = data_[6];
-		bytes[12] = data_[7];
-		bytes[13] = data_[8];
-		bytes[14] = data_[9];
-		bytes[15] = data_[10];
-		bytes[16] = data_[11];
-		bytes[17] = data_[12];
-		bytes[18] = data_[13];
-		bytes[19] = data_[14];
-		bytes[20] = data_[15];
+		for (u32 i = 0; i < (1 << N); ++i)
+		{
+			bytes[5 + i] = data_[i];
+		}
 
 		PushBytes(bytes, sizeof(bytes));
 	}
@@ -964,9 +884,9 @@ namespace MSGPack
 	template <u32 Size>
 	void Packer<Size>::PackExt8(const i32 type_, const u8* const data_, const u8 len_)
 	{
-		const i32 nType = htonl(type_);
+		const u32 nType = htonl(type_);
 
-		u8 bytes[1 + sizeof(u8) + sizeof(i32)];
+		u8 bytes[1 + sizeof(u8) + sizeof(u32)];
 		bytes[0] = ByteCodes::Ext8;
 		bytes[1] = len_;
 		bytes[2] = nType		 & 0xFF;
@@ -981,10 +901,10 @@ namespace MSGPack
 	template <u32 Size>
 	void Packer<Size>::PackExt16(const i32 type_, const u8* const data_, const u16 len_)
 	{
-		const i32 nType = htonl(type_);
+		const u32 nType = htonl(type_);
 		const u16 nLen  = htons(len_);
 
-		u8 bytes[1 + sizeof(u16) + sizeof(i32)];
+		u8 bytes[1 + sizeof(u16) + sizeof(u32)];
 		bytes[0] = ByteCodes::Ext16;
 		bytes[1] = nLen			 & 0xFF;
 		bytes[2] = (nLen >> 8)   & 0xFF;
@@ -1000,10 +920,10 @@ namespace MSGPack
 	template <u32 Size>
 	void Packer<Size>::PackExt32(const i32 type_, const u8* const data_, const u32 len_)
 	{
-		const i32 nType = htonl(type_);
+		const u32 nType = htonl(type_);
 		const u32 nLen  = htonl(len_);
 
-		u8 bytes[1 + sizeof(u32) + sizeof(i32)];
+		u8 bytes[1 + sizeof(u32) + sizeof(u32)];
 		bytes[0] = ByteCodes::Ext32;
 		bytes[1] = nLen			 & 0xFF;
 		bytes[2] = (nLen >> 8)   & 0xFF;
