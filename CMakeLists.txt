@@ -10,6 +10,5 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Libs and exe
 add_subdirectory(Include)
-add_subdirectory(Source)
 add_subdirectory(Examples)
 add_subdirectory(Tests)
