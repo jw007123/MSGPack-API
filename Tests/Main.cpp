@@ -4,26 +4,17 @@
 
 #include <thread>
 
-#include "Packer.h"
-#include "Unpacker.h"
+#include "Tests.h"
 
 int main()
 {
-	MSGPack::Packer<> packer;
-	packer.StartMap();
-	for (usize i = 0; i < 10000; ++i)
-	{
-		packer.PackString(std::to_string(i));
-		packer.PackNumber<f32>(100.0f);
-	}
-	packer.EndMap();
+	printf("Running solver unit tests...\n\n");
 
-	MSGPack::Unpacker<> unpacker(packer.Message());
-	const usize sz = unpacker.UnpackMap();
-	for (usize i = 0; i < sz; ++i)
+	MSGPack::Tests msgpackTests;
+	if (!msgpackTests.Run())
 	{
-		unpacker.UnpackString();
-		unpacker.UnpackNumber<f32>();
+		std::this_thread::sleep_for(std::chrono::seconds(5));
+		return -1;
 	}
 
 	std::this_thread::sleep_for(std::chrono::seconds(5));

@@ -4,23 +4,6 @@
 #include "Bytecodes.h"
 #include "Defines.h"
 
-#if defined(_WINDOWS)
-	#define NOMINMAX
-	#include "winsock2.h"
-	#pragma comment(lib, "Ws2_32.lib")
-#else
-	#if defined(__linux__)
-		#include <endian.h>
-	#elif defined(__FreeBSD__) || defined(__NetBSD__)
-		#include <sys/endian.h>
-	#elif defined(__OpenBSD__)
-		#include <sys/types.h>
-		#define hto16be(x) htobe16(x)
-		#define hto32be(x) htobe32(x)
-		#define hto64be(x) htobe64(x)
-	#endif
-#endif
-
 #include <cassert>
 #include <array>
 #include <vector>
@@ -795,7 +778,16 @@ namespace MSGPack
 		else
 		{
 			std::array<u8, Size>& arr = std::get<std::array<u8, Size>>(data);
-			arr.insert(arr.begin() + position_, len_ - 1, ByteCodes::NeverUse);
+
+			// i32 to avoid position_ = 0 and u32--
+			for (i32 i = (dataStaticSize - 1); i > position_; --i)
+			{
+				// Backwards iteration to avoid overwriting data
+				arr[i + (len_ - 1)] = arr[i];
+			}
+
+			// Add extra bytes
+			dataStaticSize += (len_ - 1);
 		}
 
 		for (u32 i = 0; i < len_; ++i)

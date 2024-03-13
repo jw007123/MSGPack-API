@@ -4,23 +4,6 @@
 #include "Bytecodes.h"
 #include "Defines.h"
 
-#if defined(_WINDOWS)
-	#define NOMINMAX
-	#include "winsock2.h"
-	#pragma comment(lib, "Ws2_32.lib")
-#else
-	#if defined(__linux__)
-		#include <endian.h>
-	#elif defined(__FreeBSD__) || defined(__NetBSD__)
-		#include <sys/endian.h>
-	#elif defined(__OpenBSD__)
-		#include <sys/types.h>
-		#define be16toh(x) betoh16(x)
-		#define be32toh(x) betoh32(x)
-		#define be64toh(x) betoh64(x)
-	#endif
-#endif
-
 #include <cassert>
 #include <array>
 #include <vector>
