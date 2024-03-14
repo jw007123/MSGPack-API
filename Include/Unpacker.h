@@ -186,7 +186,7 @@ namespace MSGPack
 		}
 
 		// Nil is a single byte
-		blockPos++;
+		IncrementPosition(1);
 	}
 
 	template <bool Secure, bool Local>
@@ -205,7 +205,8 @@ namespace MSGPack
 		}
 
 		// Bool is a single byte
-		blockPos++;
+		IncrementPosition(1);
+
 		return (code == ByteCodes::BoolTrue) ? true : false;
 	}
 
