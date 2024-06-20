@@ -10,8 +10,11 @@ int main()
 {
 	printf("Running solver unit tests...\n\n");
 
+	MSGPack::Packer<>   packer;
+	MSGPack::Unpacker<> unpacker;
+
 	MSGPack::Tests msgpackTests;
-	if (!msgpackTests.Run())
+	if (!msgpackTests.Run(packer, unpacker))
 	{
 		std::this_thread::sleep_for(std::chrono::seconds(5));
 		return -1;

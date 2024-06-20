@@ -3,6 +3,7 @@
 #include "Literals.h"
 #include "Bytecodes.h"
 #include "Defines.h"
+#include "PackerBase.h"
 
 #include <cassert>
 #include <array>
@@ -27,7 +28,7 @@ namespace MSGPack
 	template <u32  Size   = std::numeric_limits<u32>::max(),
 			  bool Secure = SecureBase,
 			  bool Local  = false>
-	class Packer
+	class Packer : public PackerBase<Packer<Size, Secure, Local>>
 	{
 	public:
 		Packer();

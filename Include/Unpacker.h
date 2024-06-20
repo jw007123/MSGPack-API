@@ -3,6 +3,7 @@
 #include "Literals.h"
 #include "Bytecodes.h"
 #include "Defines.h"
+#include "UnpackerBase.h"
 
 #include <cassert>
 #include <array>
@@ -22,13 +23,17 @@ namespace MSGPack
 	*/
 	template <bool Secure = SecureBase,
 			  bool Local  = false>
-	class Unpacker
+	class Unpacker : public UnpackerBase<Unpacker<Secure, Local>>
 	{
 	public:
+		Unpacker();
 		Unpacker(const std::pair<void*, u64>& memBlock_);
 
 		/// Resets the unpack process to the beginning
 		void Reset();
+
+		/// Sets the current block to unpack
+		void Set(const std::pair<void*, u64>& memBlock_);
 
 		/// Returns the ByteCode of the currently pointed-to type
 		ByteCodes PeekType() const;
@@ -61,9 +66,9 @@ namespace MSGPack
 		u32 UnpackMap();
 
 	private:
-		const void* const blockPtr;
-		const u64		  blockSize;
-		u64				  blockPos;
+		const void* blockPtr;
+		u64			blockSize;
+		u64			blockPos;
 
 		/// Safely increments the blockPos member var
 		void IncrementPosition(const u64 increment_);
@@ -125,9 +130,17 @@ namespace MSGPack
 	*/
 
 	template <bool Secure, bool Local>
+	Unpacker<Secure, Local>::Unpacker() :
+							 blockPtr(nullptr),
+							 blockSize(0)
+	{
+		blockPos = 0;
+	}
+
+	template <bool Secure, bool Local>
 	Unpacker<Secure, Local>::Unpacker(const std::pair<void*, u64>& memBlock_) :
-					  blockPtr(memBlock_.first),
-					  blockSize(memBlock_.second)
+							 blockPtr(memBlock_.first),
+							 blockSize(memBlock_.second)
 	{
 		blockPos = 0;
 	}
@@ -136,6 +149,14 @@ namespace MSGPack
 	void Unpacker<Secure, Local>::Reset()
 	{
 		blockPos = 0;
+	}
+
+	template <bool Secure, bool Local>
+	void Unpacker<Secure, Local>::Set(const std::pair<void*, u64>& memBlock_)
+	{
+		blockPtr  = memBlock_.first;
+		blockSize = memBlock_.second;
+		blockPos  = 0;
 	}
 
 	template <bool Secure, bool Local>
