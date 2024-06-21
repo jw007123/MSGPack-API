@@ -35,17 +35,17 @@ packer.PackNumber(0);
 ```
 ```cpp
 Unpacker<> unpacker(packer.Message());
-const std::string myMapStr = unpacker.UnpackString();
-const u32 mapSz            = unpacker.UnpackMap();
+const char* myMapStr = unpacker.UnpackString().first;
+const u32 mapSz      = unpacker.UnpackMap();
 for (u32 i = 0; i < mapSz; ++i)
 {
-	const std::string buff = unpacker.UnpackString();
+	const char* buff = unpacker.UnpackString().first;
 
-	if (buff == "hello")
+	if (!strcmp(buff, "hello"))
 	{
-		const std::string world = unpacker.UnpackString();
+		const char* world = unpacker.UnpackString().first;
 	}
-	else if (buff == "mynum")
+	else if (!strcmp(buff, "mynum"))
 	{
 		const u32 mynum = unpacker.UnpackNumber<u32>();
 	}
@@ -55,7 +55,7 @@ for (u32 i = 0; i < mapSz; ++i)
 	}
 }
 
-const std::string simple = unpacker.UnpackString();
-const std::string types	 = unpacker.UnpackString();
-const u32 n0             = unpacker.UnpackNumber<u32>();
+const char* simple = unpacker.UnpackString().first;
+const char* types  = unpacker.UnpackString().first;
+const u32 n0       = unpacker.UnpackNumber<u32>();
 ```
