@@ -134,7 +134,7 @@ namespace MSGPack
 
 		for (u32 i = 0; i < 10; ++i)
 		{
-			packer_.PackString(std::to_string(i));
+			packer_.PackString(std::to_string(i).c_str());
 		}
 
 		for (u32 i = 0; i < 10; ++i)
@@ -167,8 +167,8 @@ namespace MSGPack
 
 		for (u32 i = 0; i < 10; ++i)
 		{
-			const std::string v = unpacker_.UnpackString();
-			if (v != std::to_string(i))
+			const char* v = unpacker_.UnpackString().first;
+			if (strcmp(v, std::to_string(i).c_str()))
 			{
 				return false;
 			}
@@ -322,7 +322,7 @@ namespace MSGPack
 			packer_.StartMap();
 			for (u32 j = 0; j < (i * 100); ++j)
 			{
-				packer_.PackString(std::to_string(j));
+				packer_.PackString(std::to_string(j).c_str());
 				packer_.PackNumber(j);
 			}
 			packer_.EndMap();
@@ -339,8 +339,8 @@ namespace MSGPack
 
 			for (u32 j = 0; j < (i * 100); ++j)
 			{
-				const std::string s = unpacker_.UnpackString();
-				if (s != std::to_string(j))
+				const char* s = unpacker_.UnpackString().first;
+				if (strcmp(s, std::to_string(j).c_str()))
 				{
 					return false;
 				}

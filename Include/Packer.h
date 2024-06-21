@@ -10,7 +10,6 @@
 #include <vector>
 #include <variant>
 #include <stack>
-#include <string>
 #include <stdexcept>
 
 namespace MSGPack
@@ -48,7 +47,7 @@ namespace MSGPack
 		void PackNumber(const T val_);
 
 		/// Must be null-terminated
-		void PackString(const std::string& val_);
+		void PackString(const char* val_);
 
 		/// Binary in form of [val_ = ptr, len_ = size]
 		void PackBinary(const u8* const val_, const u32 len_);
@@ -334,28 +333,28 @@ namespace MSGPack
 	}
 
 	template <u32 Size, bool Secure, bool Local>
-	void Packer<Size, Secure, Local>::PackString(const std::string& val_)
+	void Packer<Size, Secure, Local>::PackString(const char* val_)
 	{
-		const u32 len = val_.length();
+		const u32 len = strlen(val_) + 1;
 
 		if (len <= 31)
 		{
-			PackFixStr(val_.data(), len);
+			PackFixStr(val_, len);
 		}
 		else if (len <= std::numeric_limits<u8>::max())
 		{
 			// <= 2^8 - 1
-			PackStr8(val_.data(), len);
+			PackStr8(val_, len);
 		}
 		else if (len <= std::numeric_limits<u16>::max())
 		{
 			// <= 2^16 - 1
-			PackStr16(val_.data(), len);
+			PackStr16(val_, len);
 		}
 		else if (len <= std::numeric_limits<u32>::max())
 		{
 			// <= 2^32 - 1
-			PackStr32(val_.data(), len);
+			PackStr32(val_, len);
 		}
 		else
 		{

@@ -50,7 +50,7 @@ namespace MSGPack
 			return static_cast<T&>(*this).UnpackNumber<S>();
 		}
 
-		std::string UnpackString()
+		std::pair<char*, u32> UnpackString()
 		{
 			return static_cast<T&>(*this).UnpackString();
 		}

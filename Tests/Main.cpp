@@ -8,7 +8,7 @@
 
 int main()
 {
-	printf("Running solver unit tests...\n\n");
+	printf("Running MSGPack unit tests...\n\n");
 
 	MSGPack::Packer<>   packer;
 	MSGPack::Unpacker<> unpacker;

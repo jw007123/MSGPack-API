@@ -58,17 +58,17 @@ namespace MSGPack
 		packer.PackBinary(binaryBlob.data(), binaryBlob.size());
 
 		Unpacker<> unpacker(packer.Message());
-		const std::string myMapStr = unpacker.UnpackString();
-		const u32 mapSz			   = unpacker.UnpackMap();
+		const std::pair<char*, u32> myMapStr = unpacker.UnpackString();
+		const u32 mapSz						 = unpacker.UnpackMap();
 		for (u32 i = 0; i < mapSz; ++i)
 		{
-			const std::string buff = unpacker.UnpackString();
+			const std::pair<char*, u32> buff = unpacker.UnpackString();
 
-			if (buff == "hello")
+			if (!strcmp(buff.first, "hello"))
 			{
-				const std::string world = unpacker.UnpackString();
+				const std::pair<char*, u32> world = unpacker.UnpackString();
 			}
-			else if (buff == "mynum")
+			else if (!strcmp(buff.first, "mynum"))
 			{
 				const u32 mynum = unpacker.UnpackNumber<u32>();
 			}
@@ -78,15 +78,15 @@ namespace MSGPack
 			}
 		}
 
-		const std::string myArrayStr = unpacker.UnpackString();
-		const u32 arrSz				 = unpacker.UnpackArray();
+		const std::pair<char*, u32> myArrayStr = unpacker.UnpackString();
+		const u32 arrSz						   = unpacker.UnpackArray();
 		for (u32 i = 0; i < arrSz; ++i)
 		{
 			const u32 num = unpacker.UnpackNumber<u32>();
 		}
 
-		const std::string simple			= unpacker.UnpackString();
-		const std::string types				= unpacker.UnpackString();
+		const std::pair<char*, u32> simple	= unpacker.UnpackString();
+		const std::pair<char*, u32> types	= unpacker.UnpackString();
 		const u32 n0						= unpacker.UnpackNumber<u32>();
 		const u32 n1						= unpacker.UnpackNumber<u32>();
 		const u32 n2						= unpacker.UnpackNumber<u32>();

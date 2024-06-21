@@ -48,8 +48,8 @@ namespace MSGPack
 		template <typename T>
 		T UnpackNumber();
 
-		/// Returns the string via &&
-		std::string UnpackString();
+		/// Returns a [ptr, len] of the string
+		std::pair<char*, u32> UnpackString();
 
 		/// Returns a ptr to the start of the binary blob in the memory block and its size. This ptr is only valid for
 		/// as long as Unpacker exists, so it's recommended to memcpy/move this to your own memory ASAP
@@ -83,11 +83,11 @@ namespace MSGPack
 		u64 NetworkToHost(const u64 val_) const;
 
 		/// Fix[type] functions
-		u8			UnpackFixUInt();
-		i8			UnpackFixInt();
-		std::string UnpackFixStr();
-		u8			UnpackFixArr();
-		u8			UnpackFixMap();
+		u8					  UnpackFixUInt();
+		i8					  UnpackFixInt();
+		std::pair<char*, u32> UnpackFixStr();
+		u8					  UnpackFixArr();
+		u8					  UnpackFixMap();
 
 		/// Fixed sizes for u8, u16, u32, u64
 		u8  UnpackU8();
@@ -106,9 +106,9 @@ namespace MSGPack
 		f64 UnpackF64();
 
 		/// Various string sizes
-		std::string UnpackStr8();
-		std::string UnpackStr16();
-		std::string UnpackStr32();
+		std::pair<char*, u32> UnpackStr8();
+		std::pair<char*, u32> UnpackStr16();
+		std::pair<char*, u32> UnpackStr32();
 
 		/// Binary blobs
 		std::pair<void*, u32> UnpackBin8();
@@ -313,7 +313,7 @@ namespace MSGPack
 	}
 
 	template <bool Secure, bool Local>
-	std::string Unpacker<Secure, Local>::UnpackString()
+	std::pair<char*, u32> Unpacker<Secure, Local>::UnpackString()
 	{
 		const ByteCodes code = PeekType();
 
@@ -349,7 +349,7 @@ namespace MSGPack
 		}
 
 		// Error. blockPos increments etc occur in switch functions
-		return std::string();
+		return std::pair<char*, u32>(nullptr, 0);
 	}
 
 	template <bool Secure, bool Local>
@@ -635,7 +635,7 @@ namespace MSGPack
 	}
 
 	template <bool Secure, bool Local>
-	std::string Unpacker<Secure, Local>::UnpackFixStr()
+	std::pair<char*, u32> Unpacker<Secure, Local>::UnpackFixStr()
 	{
 		// We want first 5 bits
 		u8 strLen = *GetData<u8>();
@@ -649,14 +649,11 @@ namespace MSGPack
 		// Pointer to next strLen bytes
 		char* strData = GetData<char>();
 
-		// Allow string to copy data
-		std::string newStr = std::string(strData, strLen);
-
 		// Safely increment blockPos
 		IncrementPosition(strLen);
 
 		// String is now safe to return
-		return newStr;
+		return std::pair<char*, u32>(strData, strLen);
 	}
 
 	template <bool Secure, bool Local>
@@ -856,7 +853,7 @@ namespace MSGPack
 	}
 
 	template <bool Secure, bool Local>
-	std::string Unpacker<Secure, Local>::UnpackStr8()
+	std::pair<char*, u32> Unpacker<Secure, Local>::UnpackStr8()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -870,18 +867,15 @@ namespace MSGPack
 		// Pointer to next strLen bytes
 		char* strData = GetData<char>();
 
-		// Allow string to copy data
-		std::string newStr = std::string(strData, strLen);
-
 		// Safely increment blockPos
 		IncrementPosition(strLen);
 
 		// String is now safe to return
-		return newStr;
+		return std::pair<char*, u32>(strData, strLen);
 	}
 
 	template <bool Secure, bool Local>
-	std::string Unpacker<Secure, Local>::UnpackStr16()
+	std::pair<char*, u32> Unpacker<Secure, Local>::UnpackStr16()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -898,18 +892,15 @@ namespace MSGPack
 		// Pointer to next strLen bytes
 		char* strData = GetData<char>();
 
-		// Allow string to copy data
-		std::string newStr = std::string(strData, strLen);
-
 		// Safely increment blockPos
 		IncrementPosition(strLen);
 
 		// String is now safe to return
-		return newStr;
+		return std::pair<char*, u32>(strData, strLen);
 	}
 
 	template <bool Secure, bool Local>
-	std::string Unpacker<Secure, Local>::UnpackStr32()
+	std::pair<char*, u32> Unpacker<Secure, Local>::UnpackStr32()
 	{
 		// Move over ByteCode
 		IncrementPosition(1);
@@ -926,14 +917,11 @@ namespace MSGPack
 		// Pointer to next strLen bytes
 		char* strData = GetData<char>();
 
-		// Allow string to copy data
-		std::string newStr = std::string(strData, strLen);
-
 		// Safely increment blockPos
 		IncrementPosition(strLen);
 
 		// String is now safe to return
-		return newStr;
+		return std::pair<char*, u32>(strData, strLen);
 	}
 
 	template <bool Secure, bool Local>

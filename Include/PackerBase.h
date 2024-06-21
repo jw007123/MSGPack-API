@@ -53,7 +53,7 @@ namespace MSGPack
 			static_cast<T&>(*this).PackNumber<S>(val_);
 		}
 
-		void PackString(const std::string& val_)
+		void PackString(const char* val_)
 		{
 			static_cast<T&>(*this).PackString(val_);
 		}
